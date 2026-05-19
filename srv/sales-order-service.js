@@ -152,7 +152,13 @@ module.exports = class SalesOrderService extends cds.ApplicationService {
         return req.error(409, `Can only post orders in APPROVED or POST_FAILED status. Current: "${order.status}".`);
       }
 
-      await _postToS4HANA(ID, req);
+      // If post fails _postToS4HANA sets POST_FAILED status in the same tx.
+      // Catching the error here keeps the tx open so it commits with POST_FAILED.
+      try {
+        await _postToS4HANA(ID, req);
+      } catch (err) {
+        cds.log('SalesOrderService').warn('postToS4HANA failed:', err.message);
+      }
 
       return SELECT.one.from(SalesOrders, ID);
     });
@@ -167,8 +173,7 @@ async function _generateOrderNumber(req) {
   const year = new Date().getFullYear().toString().slice(-2);
   try {
     const db = await cds.connect.to('db');
-    const { SalesOrderHeaders } = db.model.entities('com.sap.btp.salesorder');
-    const [{ cnt }] = await db.run(SELECT`count(*) as cnt`.from(SalesOrderHeaders));
+    const [{ cnt }] = await db.run(SELECT`count(*) as cnt`.from('com.sap.btp.salesorder.SalesOrderHeaders'));
     const seq = String((Number(cnt) ?? 0) + 1).padStart(7, '0');
     return `${year}${seq}`;
   } catch {
@@ -202,11 +207,12 @@ async function _addStatusHistory(headerID, fromStatus, toStatus, user, comment) 
 }
 
 async function _postToS4HANA(orderID, req) {
-  const { SalesOrders, SalesOrderItems } = cds.db.model.entities('com.sap.btp.salesorder');
+  const HDR = 'com.sap.btp.salesorder.SalesOrderHeaders';
+  const ITM = 'com.sap.btp.salesorder.SalesOrderItems';
 
   const [order, items] = await Promise.all([
-    SELECT.one.from(SalesOrders, orderID),
-    SELECT.from(SalesOrderItems).where([{ ref: ['header_ID'] }, '=', { val: orderID }])
+    SELECT.one.from(HDR, orderID),
+    SELECT.from(ITM).where([{ ref: ['header_ID'] }, '=', { val: orderID }])
   ]);
 
   // Build S/4HANA payload aligned to API_SALES_ORDER_SRV
@@ -242,7 +248,7 @@ async function _postToS4HANA(orderID, req) {
     const response = await s4.post('/A_SalesOrder', s4Payload);
     s4SalesOrderNumber = response?.SalesOrder;
 
-    await UPDATE(SalesOrders, orderID).with({
+    await UPDATE(HDR, orderID).with({
       status: 'POSTED',
       s4SalesOrder: s4SalesOrderNumber,
       s4PostedAt: new Date().toISOString(),
@@ -256,7 +262,7 @@ async function _postToS4HANA(orderID, req) {
     postError = err.message || String(err);
     cds.log('SalesOrderService').error('S4HANA post failed:', postError);
 
-    await UPDATE(SalesOrders, orderID).with({
+    await UPDATE(HDR, orderID).with({
       status: 'POST_FAILED',
       s4PostError: postError.substring(0, 1000)
     });
