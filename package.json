@@ -1,0 +1,65 @@
+{
+  "name": "btp-postgres-poc",
+  "version": "1.0.0",
+  "description": "SAP CAP Sales Order POC with PostgreSQL and S/4HANA integration",
+  "repository": "https://github.com/vinnypersonal/btp-postgres-poc",
+  "license": "ISC",
+  "private": true,
+  "dependencies": {
+    "@cap-js/postgres": "^1",
+    "@sap/cds": "^8",
+    "@sap/cds-dk": "^8",
+    "@sap/xssec": "^3",
+    "express": "^4",
+    "passport": "^0",
+    "axios": "^1"
+  },
+  "devDependencies": {
+    "@cap-js/sqlite": "^1"
+  },
+  "scripts": {
+    "start": "cds-serve",
+    "dev": "cds watch",
+    "build": "cds build --production",
+    "test": "npx jest"
+  },
+  "cds": {
+    "requires": {
+      "db": {
+        "kind": "postgres"
+      },
+      "s4hana": {
+        "kind": "odata-v2",
+        "model": "srv/external/API_SALES_ORDER",
+        "[production]": {
+          "destination": "SHD250SYSTEM",
+          "path": "/sap/opu/odata/sap/API_SALES_ORDER_SRV"
+        },
+        "[development]": {
+          "credentials": {
+            "url": "https://mock-s4h/sap/opu/odata/sap/API_SALES_ORDER_SRV"
+          }
+        }
+      },
+      "auth": {
+        "[production]": {
+          "kind": "xsuaa"
+        },
+        "[development]": {
+          "kind": "mocked",
+          "users": {
+            "alice": { "roles": ["SalesProcessor"] },
+            "bob": { "roles": ["Approver"] },
+            "admin": { "roles": ["SalesProcessor", "Approver", "Admin"] }
+          }
+        }
+      }
+    },
+    "build": {
+      "target": "gen",
+      "tasks": [
+        { "for": "node-cf" }
+      ]
+    }
+  }
+}

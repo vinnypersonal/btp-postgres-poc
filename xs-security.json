@@ -1,0 +1,57 @@
+{
+  "xsappname": "btp-postgres-poc",
+  "tenant-mode": "dedicated",
+  "description": "Sales Order POC Security",
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.SalesProcessor",
+      "description": "Create and manage sales orders"
+    },
+    {
+      "name": "$XSAPPNAME.Approver",
+      "description": "Approve or reject sales orders"
+    },
+    {
+      "name": "$XSAPPNAME.Admin",
+      "description": "Full administrative access"
+    }
+  ],
+  "role-templates": [
+    {
+      "name": "SalesProcessor",
+      "description": "Sales order creator",
+      "scope-references": ["$XSAPPNAME.SalesProcessor"]
+    },
+    {
+      "name": "Approver",
+      "description": "Sales order approver",
+      "scope-references": ["$XSAPPNAME.Approver"]
+    },
+    {
+      "name": "Admin",
+      "description": "Administrator",
+      "scope-references": [
+        "$XSAPPNAME.SalesProcessor",
+        "$XSAPPNAME.Approver",
+        "$XSAPPNAME.Admin"
+      ]
+    }
+  ],
+  "role-collections": [
+    {
+      "name": "SalesOrder_SalesProcessor",
+      "description": "Sales Processor role collection",
+      "role-template-references": ["$XSAPPNAME.SalesProcessor"]
+    },
+    {
+      "name": "SalesOrder_Approver",
+      "description": "Approver role collection",
+      "role-template-references": ["$XSAPPNAME.Approver"]
+    },
+    {
+      "name": "SalesOrder_Admin",
+      "description": "Admin role collection",
+      "role-template-references": ["$XSAPPNAME.Admin"]
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "requires": {
+    "[development]": {
+      "db": {
+        "kind": "sqlite",
+        "credentials": {
+          "url": ":memory:"
+        }
+      },
+      "auth": {
+        "kind": "mocked",
+        "users": {
+          "alice": {
+            "password": "alice",
+            "roles": ["SalesProcessor"],
+            "attr": {
+              "salesOrg": "1000"
+            }
+          },
+          "bob": {
+            "password": "bob",
+            "roles": ["Approver"]
+          },
+          "admin": {
+            "password": "admin",
+            "roles": ["SalesProcessor", "Approver", "Admin"]
+          }
+        }
+      }
+    },
+    "[production]": {
+      "db": {
+        "kind": "postgres"
+      }
+    }
+  },
+  "log": {
+    "levels": {
+      "SalesOrderService": "debug"
+    }
+  },
+  "odata": {
+    "version": "v4"
+  }
+}
