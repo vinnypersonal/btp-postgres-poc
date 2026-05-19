@@ -10,7 +10,7 @@ parameters:
 
 modules:
 
-  # ── CAP Backend ─────────────────────────────────────────────────────────────
+  # ── CAP Backend (Node.js) ────────────────────────────────────────────────────
   - name: btp-postgres-poc-srv
     type: nodejs
     path: gen/srv
@@ -20,67 +20,72 @@ modules:
       disk-quota: 1024M
     properties:
       EXIT: 1
+      NODE_ENV: production
+    build-parameters:
+      builder: npm
+      build-result: .
+      ignore: [node_modules/, .env, .cdsrc-private.json]
+    requires:
+      - name: btp-postgres-poc-db        # existing postgres
+      - name: btp-postgres-poc-xsuaa     # new xsuaa for this app
+      - name: btp-postgres-poc-dest      # existing destination (has SHD250SYSTEM)
+      - name: btp-postgres-poc-conn      # existing connectivity (for Cloud Connector)
+    provides:
+      - name: srv-api
+        properties:
+          srv-url: ${default-url}
+
+  # ── DB Schema Deployer ───────────────────────────────────────────────────────
+  # Deploys CDS schema to PostgreSQL via @cap-js/postgres
+  - name: btp-postgres-poc-db-deployer
+    type: nodejs
+    path: gen/srv
+    parameters:
+      buildpack: nodejs_buildpack
+      memory: 256M
+      no-route: true
+      no-start: true
+      tasks:
+        - name: deploy-to-postgres
+          command: node db-setup.js
+          memory: 512M
     build-parameters:
       builder: npm
       build-result: .
       ignore: [node_modules/, .env]
     requires:
       - name: btp-postgres-poc-db
-      - name: btp-postgres-poc-xsuaa
-      - name: btp-postgres-poc-destination
-      - name: btp-postgres-poc-connectivity
-    provides:
-      - name: srv-api
-        properties:
-          srv-url: ${default-url}
-
-  # ── Fiori / HTML5 UI ────────────────────────────────────────────────────────
-  - name: btp-postgres-poc-app
-    type: approuter.nodejs
-    path: app/router
-    parameters:
-      memory: 256M
-      disk-quota: 512M
-    requires:
-      - name: btp-postgres-poc-xsuaa
-      - name: srv-api
-        group: destinations
-        properties:
-          name: backend
-          url: ~{srv-url}
-          forwardAuthToken: true
 
 # ─── Resources ────────────────────────────────────────────────────────────────
 
 resources:
 
-  # ── PostgreSQL (BTP PostgreSQL Hyperscaler Option) ───────────────────────
+  # ── PostgreSQL — reuse existing zepcappg-postgres ────────────────────────────
   - name: btp-postgres-poc-db
-    type: org.cloudfoundry.managed-service
+    type: org.cloudfoundry.existing-service
     parameters:
-      service: postgresql-db          # BTP PostgreSQL Hyperscaler Option
-      service-plan: trial             # Use 'standard' or 'premium' for production
-      config:
-        engine_version: '14'
+      service-name: zepcappg-postgres
 
-  # ── XSUAA (Authentication) ──────────────────────────────────────────────
+  # ── XSUAA — new instance for this app ────────────────────────────────────────
   - name: btp-postgres-poc-xsuaa
     type: org.cloudfoundry.managed-service
     parameters:
       service: xsuaa
       service-plan: application
       path: ./xs-security.json
+      config:
+        xsappname: btp-postgres-poc
+        tenant-mode: dedicated
 
-  # ── Destination Service (for S/4HANA connectivity) ──────────────────────
-  - name: btp-postgres-poc-destination
-    type: org.cloudfoundry.managed-service
+  # ── Destination — reuse existing zepcappg-destination-service ────────────────
+  # (SHD250SYSTEM destination must be configured in this service instance)
+  - name: btp-postgres-poc-dest
+    type: org.cloudfoundry.existing-service
     parameters:
-      service: destination
-      service-plan: lite
+      service-name: zepcappg-destination-service
 
-  # ── Connectivity Service (for on-premise S/4HANA via Cloud Connector) ───
-  - name: btp-postgres-poc-connectivity
-    type: org.cloudfoundry.managed-service
+  # ── Connectivity — reuse existing (for Cloud Connector / on-premise S/4HANA) ─
+  - name: btp-postgres-poc-conn
+    type: org.cloudfoundry.existing-service
     parameters:
-      service: connectivity
-      service-plan: lite
+      service-name: CreateJournal-connectivity

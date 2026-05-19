@@ -1,6 +1,8 @@
 node_modules/
 gen/
 dist/
+*.mtar
+.btp-postgres-poc_mta_build_tmp/
 *.db
 *.sqlite
 .env
