@@ -21,6 +21,9 @@ modules:
     properties:
       EXIT: 1
       NODE_ENV: production
+      # Both deployer and srv MUST use the same schema name so they see the same tables.
+      # db-setup.js creates schema "btppgpoc" and grants PUBLIC access.
+      CDS_REQUIRES_DB_CREDENTIALS_SCHEMA: btppgpoc
     build-parameters:
       builder: npm
       build-result: .
@@ -36,7 +39,9 @@ modules:
           srv-url: ${default-url}
 
   # ── DB Schema Deployer ───────────────────────────────────────────────────────
-  # Deploys CDS schema to PostgreSQL via @cap-js/postgres
+  # ONE-SHOT task runner — deploys CDS schema to PostgreSQL.
+  # DO NOT start this manually from BTP cockpit. It runs only as a CF task
+  # during `cf deploy`. After the task completes it stays STOPPED — that is correct.
   - name: btp-postgres-poc-db-deployer
     type: nodejs
     path: gen/srv
@@ -45,6 +50,7 @@ modules:
       memory: 256M
       no-route: true
       no-start: true
+      health-check-type: none         # prevents CF from trying to health-check a web process
       tasks:
         - name: deploy-to-postgres
           command: node db-setup.js
@@ -55,6 +61,7 @@ modules:
       ignore: [node_modules/, .env]
     requires:
       - name: btp-postgres-poc-db
+      - name: btp-postgres-poc-xsuaa  # bound so cds-serve doesn't fail if started accidentally
 
 # ─── Resources ────────────────────────────────────────────────────────────────
 

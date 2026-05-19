@@ -162,11 +162,17 @@ module.exports = class SalesOrderService extends cds.ApplicationService {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 async function _generateOrderNumber(req) {
-  // Simple sequential number prefixed with current year
   const year = new Date().getFullYear().toString().slice(-2);
-  const count = await SELECT`count(*) as cnt`.from('com_sap_btp_salesorder_SalesOrderHeaders');
-  const seq = String((count[0]?.cnt ?? 0) + 1).padStart(7, '0');
-  return `${year}${seq}`;
+  try {
+    const db = await cds.connect.to('db');
+    const { SalesOrderHeaders } = db.model.entities('com.sap.btp.salesorder');
+    const [{ cnt }] = await db.run(SELECT`count(*) as cnt`.from(SalesOrderHeaders));
+    const seq = String((Number(cnt) ?? 0) + 1).padStart(7, '0');
+    return `${year}${seq}`;
+  } catch {
+    // Fallback: timestamp-based
+    return `${year}${Date.now().toString().slice(-7)}`;
+  }
 }
 
 function _statusCriticality(status) {

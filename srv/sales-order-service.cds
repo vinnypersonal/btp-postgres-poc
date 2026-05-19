@@ -6,7 +6,6 @@ service SalesOrderService @(path: '/api/sales-orders') {
 
   // ── Header ──────────────────────────────────────────────────────────────
 
-  @odata.draft.enabled
   @cds.redirection.target
   entity SalesOrders as projection on db.SalesOrderHeaders {
     *,
