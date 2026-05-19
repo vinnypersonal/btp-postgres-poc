@@ -36,7 +36,7 @@ module.exports = class SalesOrderService extends cds.ApplicationService {
     // ── Action: submitForApproval ───────────────────────────────────────────
 
     this.on('submitForApproval', SalesOrders, async (req) => {
-      const { ID } = req.params[0];
+      const ID = req.params[0]?.ID ?? req.params[0];
       const order = await SELECT.one.from(SalesOrders, ID).columns('*');
 
       if (!order) return req.error(404, 'Sales order not found.');
@@ -44,8 +44,10 @@ module.exports = class SalesOrderService extends cds.ApplicationService {
         return req.error(409, `Cannot submit order in status "${order.status}".`);
       }
 
-      // Validate: must have at least one item
-      const items = await SELECT.from(SalesOrderItems).where({ header_ID: ID });
+      // Validate: must have at least one item.
+      // CQL ref array form maps directly to the SQL FK column.
+      const items = await SELECT.from(SalesOrderItems)
+        .where([{ ref: ['header_ID'] }, '=', { val: ID }]);
       if (!items.length) {
         return req.error(422, 'Sales order must have at least one item before submission.');
       }
@@ -65,7 +67,7 @@ module.exports = class SalesOrderService extends cds.ApplicationService {
     // ── Action: approve ─────────────────────────────────────────────────────
 
     this.on('approve', SalesOrders, async (req) => {
-      const { ID } = req.params[0];
+      const ID = req.params[0]?.ID ?? req.params[0];
       const { comment } = req.data;
       const order = await SELECT.one.from(SalesOrders, ID);
 
@@ -97,7 +99,7 @@ module.exports = class SalesOrderService extends cds.ApplicationService {
     // ── Action: reject ──────────────────────────────────────────────────────
 
     this.on('rejectOrder', SalesOrders, async (req) => {
-      const { ID } = req.params[0];
+      const ID = req.params[0]?.ID ?? req.params[0];
       const { comment } = req.data;
       const order = await SELECT.one.from(SalesOrders, ID);
 
@@ -122,7 +124,7 @@ module.exports = class SalesOrderService extends cds.ApplicationService {
     // ── Action: retract ─────────────────────────────────────────────────────
 
     this.on('retract', SalesOrders, async (req) => {
-      const { ID } = req.params[0];
+      const ID = req.params[0]?.ID ?? req.params[0];
       const order = await SELECT.one.from(SalesOrders, ID);
 
       if (!order) return req.error(404, 'Sales order not found.');
@@ -142,7 +144,7 @@ module.exports = class SalesOrderService extends cds.ApplicationService {
     // ── Action: postToS4HANA (manual retry) ────────────────────────────────
 
     this.on('postToS4HANA', SalesOrders, async (req) => {
-      const { ID } = req.params[0];
+      const ID = req.params[0]?.ID ?? req.params[0];
       const order = await SELECT.one.from(SalesOrders, ID);
 
       if (!order) return req.error(404, 'Sales order not found.');
@@ -188,7 +190,7 @@ function _statusCriticality(status) {
 }
 
 async function _addStatusHistory(headerID, fromStatus, toStatus, user, comment) {
-  await INSERT.into('com_sap_btp_salesorder_SalesOrderStatusHistory').entries({
+  await INSERT.into('com.sap.btp.salesorder.SalesOrderStatusHistory').entries({
     ID: cds.utils.uuid(),
     header_ID: headerID,
     fromStatus,
@@ -204,7 +206,7 @@ async function _postToS4HANA(orderID, req) {
 
   const [order, items] = await Promise.all([
     SELECT.one.from(SalesOrders, orderID),
-    SELECT.from(SalesOrderItems).where({ header_ID: orderID })
+    SELECT.from(SalesOrderItems).where([{ ref: ['header_ID'] }, '=', { val: orderID }])
   ]);
 
   // Build S/4HANA payload aligned to API_SALES_ORDER_SRV
